@@ -1,0 +1,60 @@
+# No Render-managed database: PostgreSQL lives in Neon. Set DATABASE_URL in the
+# Render dashboard (sync: false) to the Neon *pooled* connection string, e.g.
+#   postgresql://user:pass@ep-xxx-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+# Because Neon is external, data survives Render redeploys/service recreation.
+services:
+  # One service only: Django serves the API under /api/ and the React build at
+  # every other route, so cookies stay first-party and there is no CORS.
+  - type: web
+    name: liga-efootball
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: ./start.sh
+    healthCheckPath: /api/health/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.1
+      - key: NODE_VERSION
+        value: "20"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      # Add a custom domain here too if you use one, e.g.
+      # ".onrender.com,liga.seudominio.com".
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      # Must be the public HTTPS origin of THIS service, e.g.
+      # https://liga-efootball.onrender.com (set in the dashboard).
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      # Neon pooled connection string (recommended for the app).
+      - key: DATABASE_URL
+        sync: false
+      # Optional: Neon *direct* connection string, used only for migrations.
+      # Recommended by Neon; if empty, migrations use DATABASE_URL.
+      - key: DIRECT_DATABASE_URL
+        sync: false
+      # Neon closes idle connections after ~5 min; do not reuse them forever.
+      - key: DATABASE_CONN_MAX_AGE
+        value: "300"
+      # Render sits behind one proxy, so throttling can use the real client IP.
+      - key: NUM_PROXIES
+        value: "1"
+      # Comma-separated emails that should be league admins (must already be
+      # registered). Promoted on every start; see README "Admin em produção".
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_TIMEOUT
+        value: "120"
+
+# Prefer building the Dockerfile instead of the native Python runtime? Replace
+# the three lines above (runtime/buildCommand/startCommand) with:
+#   runtime: docker
+#   dockerfilePath: ./Dockerfile
+#   dockerContext: .
+# Render cannot change the runtime of an existing service in place, so create a
+# new service/Blueprint if you switch.

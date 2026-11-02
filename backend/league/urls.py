@@ -1,0 +1,45 @@
+from django.urls import path
+
+from .views import (
+    AdminEnrollView,
+    AdminOverviewView,
+    ConfirmResultView,
+    ContestResultView,
+    GenerateFixturesView,
+    KickoffUpdateView,
+    LeagueDetailView,
+    LeagueSettingsView,
+    MatchDetailView,
+    MatchListView,
+    MatchLogsView,
+    MatchResultView,
+    ParticipantListView,
+    ResetAndRegenerateView,
+    RoundListView,
+    StandingsView,
+    WalkoverView,
+)
+
+urlpatterns = [
+    path("league/", LeagueDetailView.as_view(), name="league-detail"),
+    path("participants/", ParticipantListView.as_view(), name="participant-list"),
+    path("standings/", StandingsView.as_view(), name="standings"),
+    path("rounds/", RoundListView.as_view(), name="round-list"),
+    path("matches/", MatchListView.as_view(), name="match-list"),
+    path("matches/<int:pk>/", MatchDetailView.as_view(), name="match-detail"),
+    path("matches/<int:pk>/kickoff/", KickoffUpdateView.as_view(), name="match-kickoff"),
+    path("matches/<int:pk>/result/", MatchResultView.as_view(), name="match-result"),
+    path("matches/<int:pk>/walkover/", WalkoverView.as_view(), name="match-walkover"),
+    path("matches/<int:pk>/contest/", ContestResultView.as_view(), name="match-contest"),
+    path("matches/<int:pk>/confirm/", ConfirmResultView.as_view(), name="match-confirm"),
+    path("matches/<int:pk>/logs/", MatchLogsView.as_view(), name="match-logs"),
+    path("admin/league/", LeagueSettingsView.as_view(), name="admin-league-settings"),
+    path("admin/generate-fixtures/", GenerateFixturesView.as_view(), name="admin-generate"),
+    path(
+        "admin/reset-and-regenerate/",
+        ResetAndRegenerateView.as_view(),
+        name="admin-reset",
+    ),
+    path("admin/overview/", AdminOverviewView.as_view(), name="admin-overview"),
+    path("admin/participants/", AdminEnrollView.as_view(), name="admin-enroll"),
+]

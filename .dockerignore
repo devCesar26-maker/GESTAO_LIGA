@@ -1,0 +1,34 @@
+# Keep the image small and, most importantly, never bake secrets into it.
+.git
+.gitignore
+**/.env
+**/.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+LIGA/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local database / logs
+.pgdata/
+.pglog
+*.sqlite3
+backend/db.sqlite3
+*.log
+
+# Generated at build time inside the image
+backend/staticfiles/
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+
+# Local tooling files not needed in production
+docker-compose.yml
+render.yaml
+Procfile
