@@ -77,6 +77,8 @@ export default function LoginPage() {
 
         <p className="auth-footer">
           Ainda não tem conta? <Link to="/cadastro">Cadastre-se</Link>
+          <br />
+          <Link to="/esqueci-senha">Esqueci minha senha</Link>
         </p>
         <Link to="/" className="auth-back">
           ← Voltar para a liga

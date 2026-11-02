@@ -511,6 +511,10 @@ code {
   border-left: 4px solid var(--warning);
 }
 
+.notice-success {
+  border-left: 4px solid var(--brand);
+}
+
 .muted {
   color: var(--muted);
 }

@@ -23,6 +23,7 @@ digitados no site.
 - [Contas e dados de demonstração](#contas-e-dados-de-demonstração)
 - [Admin em produção](#admin-em-produção)
 - [Segurança da sessão (cookies HttpOnly + CSRF)](#segurança-da-sessão-cookies-httponly--csrf)
+- [Email e recuperação de senha](#email-e-recuperação-de-senha)
 - [Serviço único e mesma origem](#serviço-único-e-mesma-origem)
 - [Hardening de produção](#hardening-de-produção)
 - [Nome personalizado da liga](#nome-personalizado-da-liga)
@@ -62,6 +63,8 @@ digitados no site.
 9. **Autorização real no backend** (permissões DRF + checagem repetida nos serviços) e front
    apenas como UX.
 10. **Mensagens amigáveis** `{code, message}` em pt-BR, sempre exibidas em toast.
+11. **Recuperação de senha por email** via API da Brevo (ou SMTP genérico), link de uso único,
+    token de 1 hora e invalidação das sessões antigas.
 
 Requisitos não funcionais: configuração por variáveis de ambiente, um único serviço em produção,
 PostgreSQL como banco suportado, mobile-first e nenhuma regra crítica no frontend.
@@ -104,8 +107,10 @@ PostgreSQL como banco suportado, mobile-first e nenhuma regra crítica no fronte
 ├── backend/
 │   ├── config/               # settings, urls (API + SPA + /django-admin/), wsgi/asgi
 │   ├── core/                 # mensagens, erros, CSRF, autenticação por cookie, headers,
-│   │                         # permissões, idempotência, throttles, view do SPA
-│   ├── accounts/             # User por email, cookies de sessão, login/refresh/logout/csrf/me
+│   │                         # permissões, idempotência, throttles, email, view do SPA
+│   ├── accounts/             # User por email, cookies de sessão, login/refresh/logout/csrf/me,
+│   │                         # recuperação de senha
+│   ├── templates/            # emails transacionais (reset de senha)
 │   ├── league/
 │   │   ├── models.py         # League, Participant, Round, Match, MatchResultLog, LeagueChangeLog
 │   │   ├── services/         # fixtures, results, rounds (trava), standings, league_name
@@ -119,7 +124,8 @@ PostgreSQL como banco suportado, mobile-first e nenhuma regra crítica no fronte
 │   ├── src/context/          # Auth (descoberta de sessão) e Toasts
 │   ├── src/lib/              # cookies, limpeza de tokens legados, formatação
 │   ├── src/components/       # Layout, MatchCard, tabela, diálogos, rotas protegidas
-│   └── src/pages/            # Classificação, Rodadas, Login, Cadastro, Perfil, Admin
+│   └── src/pages/            # Classificação, Rodadas, Login, Cadastro, Perfil, Admin,
+│                             # Esqueci a senha e Redefinir senha
 ├── build.sh                  # build único: deps + frontend + collectstatic + migrate
 ├── start.sh                  # sync_admins + gunicorn (Render/Railway/Docker)
 ├── Procfile
@@ -224,7 +230,7 @@ Arquivo único na raiz (`.env`), carregado pelo backend. O frontend não precisa
 | `DATABASE_CONNECT_TIMEOUT` | não | Timeout de conexão em segundos (padrão 10). |
 | `POSTGRES_PORT` | não | Porta do host usada pelo `docker compose` (padrão 5433). |
 | `ALLOWED_HOSTS` | sim | Lista separada por vírgula. Ex.: `localhost,127.0.0.1,.onrender.com`. |
-| `CSRF_TRUSTED_ORIGINS` | **sim em produção** | Origem pública HTTPS do serviço único. Ex.: `https://liga-efootball.onrender.com`. |
+| `CSRF_TRUSTED_ORIGINS` | **sim em produção** | Origem pública HTTPS do serviço único. Ex.: `https://liga-amigos.onrender.com`. |
 | `ADMIN_EMAILS` | não | Emails (separados por vírgula) que devem ser admin. O `start.sh` promove a cada boot; a conta precisa existir. |
 | `NUM_PROXIES` | não | Nº de proxies reversos. `1` no Render/Railway para o throttle usar o IP real; `0` quando exposto direto. |
 | `SECURE_SSL_REDIRECT` | não | Padrão `not DEBUG`. O `/api/health/` é sempre isento para não quebrar health checks. |
@@ -232,6 +238,18 @@ Arquivo único na raiz (`.env`), carregado pelo backend. O frontend não precisa
 | `CONTEST_WINDOW_HOURS` | não | Janela de contestação (padrão 48). |
 | `MAX_GOALS_PER_MATCH` | não | Limite de gols (padrão 30; as constraints do banco usam 30). |
 | `WALKOVER_GOALS` | não | Gols do W.O. (padrão 3). |
+| `FRONTEND_URL` | recomendada | Origem pública do SPA usada no link de reset. Em dev o padrão é `http://localhost:5173`. |
+| `BREVO_API_KEY` | sim para envio real | Chave da API transacional da Brevo (`xkeysib-...`). |
+| `DEFAULT_FROM_EMAIL` | sim para envio real | Remetente **verificado na Brevo**. Ex.: `Liga Amigos <no-reply@seudominio.com>`. |
+| `BREVO_API_URL` | não | URL da API da Brevo (padrão `https://api.brevo.com/v3/smtp/email`). |
+| `EMAIL_HOST` | não | Alternativa SMTP, usada só quando `BREVO_API_KEY` está vazia. |
+| `EMAIL_PORT` | não | Porta SMTP (padrão 587; 465 com `EMAIL_USE_SSL=True`). |
+| `EMAIL_HOST_USER` | não | Usuário SMTP (alternativa à API da Brevo). |
+| `EMAIL_HOST_PASSWORD` | não | Senha/API key SMTP (alternativa à API da Brevo). |
+| `EMAIL_USE_TLS` | não | STARTTLS na porta 587 (padrão `True`). |
+| `EMAIL_USE_SSL` | não | SSL direto na porta 465 (padrão `False`). |
+| `EMAIL_TIMEOUT` | não | Timeout de envio em segundos (padrão 10). |
+| `PASSWORD_RESET_TIMEOUT` | não | Validade do link em segundos (padrão 3600). |
 
 Não existem valores inseguros de fallback: fora do desenvolvimento, `SECRET_KEY` é obrigatória.
 
@@ -375,6 +393,8 @@ para outro dispositivo nem sobreviver ao fechamento da aba.
 - Email inexistente e senha errada devolvem exatamente a mesma resposta
   (`401 INVALID_CREDENTIALS`, “Email ou senha incorretos.”).
 - Throttling: login `10/min`, cadastro `30/h`, refresh `60/h` por IP; usuários `6000/h`.
+- Pedido de reset de senha `5/h` e confirmação `20/h` por IP. Email existente e inexistente
+  devolvem a mesma resposta (`200 PASSWORD_RESET_SENT`).
 
 ### Auditoria de XSS e SQL
 
@@ -382,6 +402,51 @@ para outro dispositivo nem sobreviver ao fechamento da aba.
   renderizado como texto puro pelo React.
 - Nenhum SQL cru concatenado no backend: só ORM, com parâmetros.
 - CSP restritiva (abaixo) sem `unsafe-inline` para scripts.
+
+---
+
+## Email e recuperação de senha
+
+O único email transacional é o link de redefinição de senha. Não há verificação de email no
+cadastro nem notificações automáticas de partidas.
+
+### Como funciona
+
+- `POST /api/auth/password-reset/` recebe o email e **sempre** devolve a mesma resposta
+  (`PASSWORD_RESET_SENT`), exista ou não a conta. Se a conta estiver ativa e tiver senha utilizável,
+  o Django gera um token de uso único e envia o link.
+- `POST /api/auth/password-reset/confirm/` valida `uid` + `token`, troca a senha, blacklista todos
+  os refresh tokens do usuário e limpa os cookies da resposta. A nova senha passa pelos mesmos
+  validadores do cadastro.
+- O link aponta para `FRONTEND_URL/redefinir-senha?uid=...&token=...`; o token expira em
+  `PASSWORD_RESET_TIMEOUT` (padrão **1 hora**) e deixa de valer depois do primeiro uso.
+- As páginas são `/esqueci-senha` e `/redefinir-senha`; o login tem o link “Esqueci minha senha”.
+- Throttle: `5/h` para solicitar e `20/h` para confirmar, por IP.
+- Falha de envio é registrada no log e a resposta continua genérica, para não revelar se o email
+  existe.
+
+### Brevo (recomendado)
+
+Em desenvolvimento (`DEBUG=True`) o backend de console imprime o email no terminal e o link aponta
+para `http://localhost:5173`. Em produção, o projeto usa a **API HTTP da Brevo** quando
+`BREVO_API_KEY` está definida. Basta configurar no Render:
+
+| Variável | Exemplo |
+| --- | --- |
+| `BREVO_API_KEY` | `xkeysib-...` |
+| `DEFAULT_FROM_EMAIL` | `Liga Amigos <no-reply@seudominio.com>` |
+| `FRONTEND_URL` | `https://liga-amigos.onrender.com` |
+
+A chave é criada em **Brevo → Transactional → Settings → API keys**. O email em
+`DEFAULT_FROM_EMAIL` precisa estar **verificado na Brevo** (ou o domínio autenticado); sem isso a
+API recusa o envio. A API da Brevo tem precedência sobre SMTP.
+
+### SMTP (alternativa)
+
+Se preferir SMTP, deixe `BREVO_API_KEY` vazia e use `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend`
+com `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` e `EMAIL_USE_TLS`. Nesse
+caso, a senha é a **SMTP key** da Brevo (não a API key). Resend, Mailgun, Gmail e qualquer outro
+provedor SMTP também funcionam sem SDK adicional.
 
 ---
 
@@ -428,8 +493,8 @@ Com `DEBUG=False` (e `SECURE_SSL_REDIRECT` pode ser forçado por env):
 
 ### Riscos residuais (conhecidos)
 
-- **Sem verificação de email e sem recuperação de senha.** Crie/promova a conta do admin antes de
-  abrir o cadastro; o `seed_demo` com senha conhecida é bloqueado com `DEBUG=False`.
+- **Sem verificação de email e sem notificações automáticas.** A recuperação de senha agora é por
+  email; o `seed_demo` com senha conhecida continua bloqueado com `DEBUG=False`.
 - **Throttle em memória por processo.** O cache padrão do Django é `LocMemCache`: com 2 workers,
   os limites de login/cadastro valem por worker (e zeram ao reiniciar). Para um limite global,
   configure um cache compartilhado (Redis) — não é obrigatório para o tamanho desta liga.
@@ -600,6 +665,8 @@ Base: `/api/`. Leitura é pública; escrita exige sessão (cookies) **e** `X-CSR
 | GET | `/auth/csrf/` | Garante o cookie `csrftoken` e devolve o token |
 | POST | `/auth/register/` | Cadastro + login automático (define cookies) |
 | POST | `/auth/login/` | Login por email (define cookies; sem tokens no corpo) |
+| POST | `/auth/password-reset/` | Solicita link de redefinição (resposta genérica) |
+| POST | `/auth/password-reset/confirm/` | Redefine a senha com `uid` + `token` |
 | POST | `/auth/refresh/` | Rotaciona o refresh do cookie e define novos cookies |
 | POST | `/auth/logout/` | Blacklista o refresh e apaga os cookies |
 | GET/PATCH | `/auth/me/` | Perfil do usuário logado |
@@ -648,6 +715,7 @@ incrementada.
 | `/` | público — classificação e resumo da liga |
 | `/rodadas` | público — rodadas, cadeados e ações permitidas |
 | `/login`, `/cadastro` | público |
+| `/esqueci-senha`, `/redefinir-senha` | público — recuperação de senha |
 | `/perfil` | privado (redireciona ao login e volta) |
 | `/admin` | apenas admin (senão página amigável de acesso negado) |
 | `/sem-acesso`, `*` | páginas amigáveis |
@@ -682,7 +750,7 @@ source ../.venv/bin/activate
 pytest
 ```
 
-**Resultado final desta alteração: `112 passed`** (backend) + `npm run build` sem erros no frontend.
+**Resultado final desta alteração: `121 passed`** (backend) + `npm run build` sem erros no frontend.
 
 Cobertura relevante:
 
@@ -703,6 +771,10 @@ Cobertura relevante:
   empatados; confronto direto **não** é usado; empate total decidido pelo nome do time.
 - **W.O.**: só admin, 3x0 para quem compareceu, entra na classificação, `is_walkover`, log,
   fecha a rodada, exige partida pendente e respeita a trava.
+- **Recuperação de senha**: email enviado só para conta ativa, resposta genérica para email
+  inexistente, token válido troca a senha, token inválido/expirado e reuso recebem
+  `PASSWORD_RESET_INVALID`, senha fraca é rejeitada, refresh tokens antigos são blacklistados, os
+  cookies são limpos e a API da Brevo é usada quando `BREVO_API_KEY` está configurada.
 - **Regressão**: idempotência de geração e resultado (inclusive concorrência com threads),
   propriedade da partida (terceiro recebe `403 NOT_MATCH_PARTICIPANT`), formato `{code, message}` e
   permissões existentes.
@@ -741,9 +813,13 @@ recriação do serviço e ao sleep do plano free.
 3. Preencha as variáveis que estão com `sync: false`:
    - `DATABASE_URL`: string **pooled** do Neon;
    - `DIRECT_DATABASE_URL`: string **direta** do Neon (opcional, usada só no `migrate`);
-   - `CSRF_TRUSTED_ORIGINS`: `https://liga-efootball.onrender.com` (a URL pública do serviço);
+   - `BREVO_API_KEY`: chave da API transacional da Brevo;
+   - `DEFAULT_FROM_EMAIL`: remetente **verificado na Brevo**, por exemplo
+     `Liga Amigos <no-reply@seudominio.com>`;
    - `ADMIN_EMAILS`: email do admin (opcional; veja [Admin em produção](#admin-em-produção)).
-   `SECRET_KEY` é gerada pelo Blueprint.
+   `SECRET_KEY` é gerada pelo Blueprint. `CSRF_TRUSTED_ORIGINS` e `FRONTEND_URL` já vêm definidos
+   como `https://liga-amigos.onrender.com`; ajuste se o nome do serviço for diferente ou se usar
+   domínio próprio.
 4. O build executa `./build.sh`:
    - `pip install -r backend/requirements.txt`;
    - `npm ci`/`npm install` + `npm run build` em `frontend` (gera `frontend/dist`);
@@ -771,6 +847,10 @@ docker compose up --build       # app em http://localhost:8000 (DEBUG=False)
 Em produção atrás de HTTPS, mantenha `DEBUG=False`. Para testar localmente em HTTP, use
 `DEBUG=True` (só então os cookies deixam de ser `Secure`).
 
+Para o reset de senha no Docker, configure `FRONTEND_URL` e `BREVO_API_KEY` no `.env`; sem uma
+chave válida, a falha de envio fica registrada no log e a resposta ao usuário continua genérica.
+Se preferir SMTP, configure também `EMAIL_*` e deixe `BREVO_API_KEY` vazia.
+
 PostgreSQL local opcional (sem Neon), com o profile `local-db`:
 
 ```bash
@@ -795,7 +875,8 @@ A versão anterior publicava a API e o frontend estático separadamente. Passos:
 - Crie o projeto e use o **Neon** como banco (ou o plugin PostgreSQL, que injeta `DATABASE_URL`).
 - Build: `./build.sh`; Start: `./start.sh` (ou o `Procfile`).
 - Defina `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` (URL do serviço),
-  `NUM_PROXIES=1` e, se quiser, `ADMIN_EMAILS`.
+  `NUM_PROXIES=1`, `FRONTEND_URL`, `BREVO_API_KEY` e `DEFAULT_FROM_EMAIL` para recuperação de senha.
+  `ADMIN_EMAILS` é opcional.
 
 ### Dependências auditadas
 
@@ -846,8 +927,8 @@ A versão anterior publicava a API e o frontend estático separadamente. Passos:
 - **Sem API do jogo**: resultados são manuais por definição do projeto.
 - “Um jogador por rodada” é garantido por algoritmo + validação + testes, não por constraint SQL.
 - Gols limitados a 30 também no banco; aumentar exige migração.
-- Não há verificação de email, recuperação de senha nem notificações — o admin resolve pela
-  interface.
+- Não há verificação de email nem notificações automáticas — a recuperação de senha é o único
+  email transacional e o admin resolve o resto pela interface.
 - Se o refresh token for roubado por um XSS que consiga executar na origem, ainda é possível agir
   na sessão (o CSRF não protege contra script na própria origem); a mitigação é a CSP estrita e a
   rotação/blacklist do refresh.

@@ -55,6 +55,28 @@ class RegisterSerializer(serializers.Serializer):
             raise AppError("EMAIL_TAKEN", 400)
 
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise AppError(
+                "WEAK_PASSWORD", 400, {"errors": {"password": list(exc.messages)}}
+            )
+        return value
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(read_only=True)
 

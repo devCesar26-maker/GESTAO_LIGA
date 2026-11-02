@@ -1,8 +1,17 @@
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from accounts.models import User
 from league.models import League, Participant
+
+
+@pytest.fixture(autouse=True)
+def clear_throttle_cache():
+    """Keep anonymous throttle counters from leaking between tests."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture(autouse=True)

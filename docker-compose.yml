@@ -29,6 +29,10 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       DATABASE_CONN_MAX_AGE: ${DATABASE_CONN_MAX_AGE:-300}
       NUM_PROXIES: ${NUM_PROXIES:-0}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Liga Amigos <no-reply@localhost>}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8000}
+      PASSWORD_RESET_TIMEOUT: ${PASSWORD_RESET_TIMEOUT:-3600}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     healthcheck:
       test:

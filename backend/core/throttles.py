@@ -14,5 +14,13 @@ class RefreshRateThrottle(AnonRateThrottle):
     scope = "refresh"
 
 
+class PasswordResetRateThrottle(AnonRateThrottle):
+    scope = "password_reset"
+
+
+class PasswordResetConfirmRateThrottle(AnonRateThrottle):
+    scope = "password_reset_confirm"
+
+
 class WriteRateThrottle(ScopedRateThrottle):
     scope = "user"

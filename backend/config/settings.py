@@ -203,6 +203,8 @@ REST_FRAMEWORK = {
         "login": "10/min",
         "register": "30/hour",
         "refresh": "60/hour",
+        "password_reset": "5/hour",
+        "password_reset_confirm": "20/hour",
     },
     # Set NUM_PROXIES=1 on Render/Railway so throttling uses the real client IP
     # from X-Forwarded-For instead of the platform proxy address. Keep 0 when
@@ -243,6 +245,42 @@ CSRF_FAILURE_VIEW = "core.csrf.csrf_failure"
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False  # axios must read it to send X-CSRFToken
 CSRF_COOKIE_SECURE = not DEBUG
+
+# ---------------------------------------------------------------------------
+# Email and password reset
+# ---------------------------------------------------------------------------
+# Production uses SMTP. Development and the test suite use the console backend
+# so no real message leaves the machine by accident. Any SMTP provider works
+# (Resend, Brevo, Mailgun, Gmail, etc.) because only environment variables are
+# involved; no SDK is required.
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", not EMAIL_USE_SSL)
+_default_email_backend = (
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG or is_running_tests()
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_BACKEND = env("EMAIL_BACKEND", _default_email_backend)
+EMAIL_HOST = env("EMAIL_HOST")
+EMAIL_PORT = int(env("EMAIL_PORT", "465" if EMAIL_USE_SSL else "587"))
+EMAIL_HOST_USER = env("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10"))
+# Brevo transactional email API. When the key is set it takes precedence over
+# SMTP, so production only needs BREVO_API_KEY + DEFAULT_FROM_EMAIL.
+BREVO_API_KEY = env("BREVO_API_KEY").strip()
+BREVO_API_URL = env("BREVO_API_URL", "https://api.brevo.com/v3/smtp/email").strip()
+DEFAULT_FROM_EMAIL = env(
+    "DEFAULT_FROM_EMAIL", "Liga Amigos <no-reply@localhost>"
+).strip()
+# Public origin of the React app, used in the reset link. In development the
+# Vite server is on :5173; in production set it to the public HTTPS URL.
+FRONTEND_URL = env(
+    "FRONTEND_URL",
+    "http://localhost:5173" if DEBUG or is_running_tests() else "",
+).rstrip("/")
+# Django's default is three days; one hour is plenty for a league invite.
+PASSWORD_RESET_TIMEOUT = int(env("PASSWORD_RESET_TIMEOUT", "3600"))
 
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"

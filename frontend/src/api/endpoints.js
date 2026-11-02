@@ -8,6 +8,10 @@ export const authApi = {
   // The session is discovered by asking the API; 401 simply means "visitor".
   me: () => api.get("/auth/me/", { __silent: true }),
   updateProfile: (payload) => api.patch("/auth/me/", payload),
+  requestPasswordReset: (email) =>
+    api.post("/auth/password-reset/", { email }, { __silent: true }),
+  confirmPasswordReset: (payload) =>
+    api.post("/auth/password-reset/confirm/", payload, { __silent: true }),
 };
 
 export const leagueApi = {

@@ -6,7 +6,7 @@ services:
   # One service only: Django serves the API under /api/ and the React build at
   # every other route, so cookies stay first-party and there is no CORS.
   - type: web
-    name: liga-efootball
+    name: liga-amigos
     runtime: python
     plan: free
     buildCommand: ./build.sh
@@ -25,10 +25,11 @@ services:
       # ".onrender.com,liga.seudominio.com".
       - key: ALLOWED_HOSTS
         value: ".onrender.com"
-      # Must be the public HTTPS origin of THIS service, e.g.
-      # https://liga-efootball.onrender.com (set in the dashboard).
+      # Must be the public HTTPS origin of THIS service.
+      # The Blueprint assumes the default Render URL; update it if the name is
+      # already taken or if you attach a custom domain.
       - key: CSRF_TRUSTED_ORIGINS
-        sync: false
+        value: https://liga-amigos.onrender.com
       # Neon pooled connection string (recommended for the app).
       - key: DATABASE_URL
         sync: false
@@ -46,6 +47,17 @@ services:
       # registered). Promoted on every start; see README "Admin em produção".
       - key: ADMIN_EMAILS
         sync: false
+      # Brevo transactional email API. Only BREVO_API_KEY is secret; the sender
+      # below must be a verified sender address/domain in the Brevo account.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      # Public HTTPS origin used in the password reset link.
+      - key: FRONTEND_URL
+        value: https://liga-amigos.onrender.com
+      - key: PASSWORD_RESET_TIMEOUT
+        value: "3600"
       - key: WEB_CONCURRENCY
         value: "2"
       - key: GUNICORN_TIMEOUT

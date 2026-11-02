@@ -26,6 +26,7 @@ const NO_RETRY_PATHS = [
   "/auth/register/",
   "/auth/refresh/",
   "/auth/logout/",
+  "/auth/password-reset/",
 ];
 
 let refreshPromise = null;

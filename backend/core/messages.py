@@ -36,6 +36,14 @@ MESSAGES = {
     "USER_NOT_FOUND": "Não encontramos um usuário com este email.",
     "PLAYER_ALREADY_IN_LEAGUE": "Este jogador já está inscrito na liga.",
     "LEAGUE_NOT_OPEN": "A liga não está com inscrições abertas.",
+    # --- password reset ----------------------------------------------------
+    "PASSWORD_RESET_SENT": (
+        "Se este email estiver cadastrado, enviaremos as instruções para redefinir a senha."
+    ),
+    "PASSWORD_RESET_SUCCESS": "Senha redefinida com sucesso. Entre com a nova senha.",
+    "PASSWORD_RESET_INVALID": (
+        "Este link de redefinição é inválido ou expirou. Solicite um novo."
+    ),
     # --- fixtures ----------------------------------------------------------
     "FIXTURES_ALREADY_GENERATED": "Os confrontos já foram gerados. Nada foi alterado.",
     "FIXTURES_GENERATED": "Confrontos gerados com sucesso!",
