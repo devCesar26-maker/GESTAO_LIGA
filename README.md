@@ -65,6 +65,8 @@ digitados no site.
 10. **Mensagens amigáveis** `{code, message}` em pt-BR, sempre exibidas em toast.
 11. **Recuperação de senha por email** via API da Brevo (ou SMTP genérico), link de uso único,
     token de 1 hora e invalidação das sessões antigas.
+12. **Remoção de jogador pelo admin**, mantendo a conta de login e preservando o histórico quando
+    já existem resultados.
 
 Requisitos não funcionais: configuração por variáveis de ambiente, um único serviço em produção,
 PostgreSQL como banco suportado, mobile-first e nenhuma regra crítica no frontend.
@@ -522,6 +524,23 @@ Com `DEBUG=False` (e `SECURE_SSL_REDIRECT` pode ser forçado por env):
 
 ---
 
+## Remoção de jogador
+
+- **`DELETE /api/admin/participants/<id>/`** (somente admin) remove o vínculo com a liga
+  (`Participant`), mas **mantém a conta de login** (`User`).
+- Antes de gerar confrontos, a remoção é direta.
+- Depois de gerar confrontos e **sem nenhum resultado**, os confrontos são regerados sem o
+  jogador para manter rodadas, folgas (`BYE`) e classificação consistentes.
+- Com resultados já registrados, jogadores que têm partidas **não podem ser removidos**
+  (`409 CANNOT_REMOVE_PARTICIPANT_WITH_RESULTS`), para não apagar histórico e alterar a
+  classificação.
+- Um jogador inscrito depois da geração e ainda sem partidas pode ser removido sem mexer nos
+  confrontos existentes.
+- Também é bloqueado (`409 CANNOT_REMOVE_LAST_PLAYERS`) quando a remoção deixaria menos de 2
+  jogadores em uma liga que já tem confrontos.
+
+---
+
 ## Geração de confrontos
 
 - Método do círculo: com `N` jogadores são `N-1` rodadas por turno (N par) e `N` rodadas por turno
@@ -698,7 +717,8 @@ Base: `/api/`. Leitura é pública; escrita exige sessão (cookies) **e** `X-CSR
 | POST | `/admin/generate-fixtures/` | Admin (idempotente) |
 | POST | `/admin/reset-and-regenerate/` | Admin (bloqueado com resultados) |
 | GET | `/admin/overview/` | Admin (inclui pendentes para W.O.) |
-| POST | `/admin/participants/` | Admin |
+| POST | `/admin/participants/` | Admin (inscrever) |
+| DELETE | `/admin/participants/<id>/` | Admin (remover da liga; mantém a conta) |
 
 Headers opcionais nos endpoints críticos: `Idempotency-Key: <texto-único>`.
 `Idempotency-Key` e o corpo do resultado são a base da idempotência; a classificação nunca é
@@ -737,7 +757,8 @@ incrementada.
   admin renomear).
 - Rodadas com cadeado e tooltip nas bloqueadas; “Inserir resultado” oculto.
 - Cartões de partida com placar, status, badge **W.O.**, autoria e aviso de contestação.
-- Admin: nome da liga, geração/reset de confrontos, W.O. por lado, contestações e inscrições.
+- Admin: nome da liga, geração/reset de confrontos, W.O. por lado, contestações, inscrições e
+  remoção de jogador (a conta de login é mantida).
 - Toasts de sucesso/erro, loading, erro com retry e estados vazios.
 
 ---
@@ -750,7 +771,7 @@ source ../.venv/bin/activate
 pytest
 ```
 
-**Resultado final desta alteração: `121 passed`** (backend) + `npm run build` sem erros no frontend.
+**Resultado final desta alteração: `129 passed`** (backend) + `npm run build` sem erros no frontend.
 
 Cobertura relevante:
 
@@ -771,6 +792,9 @@ Cobertura relevante:
   empatados; confronto direto **não** é usado; empate total decidido pelo nome do time.
 - **W.O.**: só admin, 3x0 para quem compareceu, entra na classificação, `is_walkover`, log,
   fecha a rodada, exige partida pendente e respeita a trava.
+- **Remoção de jogador**: só admin; remove o participante e mantém a conta; antes dos confrontos
+  é direta; depois dos confrontos sem resultados regera a tabela; com resultados é bloqueada;
+  jogador sem partidas pode ser removido; e a liga não fica com menos de 2 jogadores.
 - **Recuperação de senha**: email enviado só para conta ativa, resposta genérica para email
   inexistente, token válido troca a senha, token inválido/expirado e reuso recebem
   `PASSWORD_RESET_INVALID`, senha fraca é rejeitada, refresh tokens antigos são blacklistados, os

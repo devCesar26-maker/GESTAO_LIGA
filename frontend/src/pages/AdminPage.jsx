@@ -21,6 +21,7 @@ export default function AdminPage() {
   const [showReset, setShowReset] = useState(false);
   const [correction, setCorrection] = useState(null);
   const [enroll, setEnroll] = useState(emptyEnroll);
+  const [participantToRemove, setParticipantToRemove] = useState(null);
   const [leagueName, setLeagueName] = useState("");
 
   const load = useCallback(async () => {
@@ -46,6 +47,17 @@ export default function AdminPage() {
   const pending = overview?.pending_matches_list || [];
   const fixturesGenerated = Boolean(league?.fixtures_generated_at);
   const hasResults = Boolean(overview?.has_results);
+  const removeMessage = participantToRemove
+    ? `${participantToRemove.player_name} (${participantToRemove.team_name}) será removido da liga. A conta de login continuará existindo.${
+        fixturesGenerated && !hasResults
+          ? " Os confrontos serão regerados sem ele."
+          : ""
+      }${
+        hasResults
+          ? " Se ele já tiver resultados lançados, a remoção será bloqueada para preservar o histórico."
+          : ""
+      }`
+    : "";
 
   useEffect(() => {
     if (league?.name) setLeagueName(league.name);
@@ -138,6 +150,18 @@ export default function AdminPage() {
       await load();
     } catch {
       // Toast handled globally.
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const removePlayer = async () => {
+    if (!participantToRemove) return;
+    setBusy(`remove-${participantToRemove.id}`);
+    try {
+      const { data } = await leagueApi.removeParticipant(participantToRemove.id);
+      notify(data.message, "success");
+      await load();
     } finally {
       setBusy("");
     }
@@ -395,9 +419,20 @@ export default function AdminPage() {
             <ul className="participant-list">
               {participants.map((participant) => (
                 <li key={participant.id}>
-                  <span className="participant-team">{participant.team_name}</span>
-                  <span>{participant.player_name}</span>
-                  <span className="muted participant-email">{participant.email}</span>
+                  <div className="participant-info">
+                    <span className="participant-team">{participant.team_name}</span>
+                    <span>{participant.player_name}</span>
+                    <span className="muted participant-email">{participant.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="button button-small button-ghost participant-remove"
+                    onClick={() => setParticipantToRemove(participant)}
+                    disabled={busy === `remove-${participant.id}`}
+                    title="Remover da liga. A conta de login será mantida."
+                  >
+                    {busy === `remove-${participant.id}` ? "Removendo..." : "Remover"}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -465,6 +500,17 @@ export default function AdminPage() {
           </form>
         </section>
       </div>
+
+      {participantToRemove && (
+        <ConfirmDialog
+          title="Remover jogador?"
+          message={removeMessage}
+          confirmLabel="Remover"
+          danger
+          onConfirm={removePlayer}
+          onClose={() => setParticipantToRemove(null)}
+        />
+      )}
 
       {showReset && (
         <ConfirmDialog

@@ -36,6 +36,18 @@ MESSAGES = {
     "USER_NOT_FOUND": "Não encontramos um usuário com este email.",
     "PLAYER_ALREADY_IN_LEAGUE": "Este jogador já está inscrito na liga.",
     "LEAGUE_NOT_OPEN": "A liga não está com inscrições abertas.",
+    "PARTICIPANT_REMOVED": "Jogador removido da liga. A conta de acesso foi mantida.",
+    "PARTICIPANT_REMOVED_REGENERATED": (
+        "Jogador removido da liga. Os confrontos foram regerados sem ele."
+    ),
+    "CANNOT_REMOVE_PARTICIPANT_WITH_RESULTS": (
+        "Não é possível remover este jogador: já existem resultados registrados. "
+        "Isso apagaria o histórico e a classificação."
+    ),
+    "CANNOT_REMOVE_LAST_PLAYERS": (
+        "Não é possível remover: a liga precisa de pelo menos 2 jogadores para "
+        "manter os confrontos."
+    ),
     # --- password reset ----------------------------------------------------
     "PASSWORD_RESET_SENT": (
         "Se este email estiver cadastrado, enviaremos as instruções para redefinir a senha."

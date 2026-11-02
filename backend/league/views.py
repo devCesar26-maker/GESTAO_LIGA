@@ -25,7 +25,7 @@ from .serializers import (
 )
 from .services.fixtures import generate_fixtures, reset_and_regenerate
 from .services.league_name import update_league_name
-from .services.participants import add_participant
+from .services.participants import add_participant, remove_participant
 from .services.results import (
     confirm_result,
     contest_result,
@@ -425,6 +425,34 @@ class AdminEnrollView(APIView):
                 "participant": AdminParticipantSerializer(participant).data,
             },
             status=201,
+        )
+
+
+class AdminParticipantDetailView(APIView):
+    """Admin: remove a player from the league without deleting their account."""
+
+    permission_classes = [IsAdmin]
+
+    def delete(self, request, pk):
+        league = get_league()
+        participant = (
+            league.participants.select_related("user").filter(pk=pk).first()
+        )
+        if participant is None:
+            raise AppError("NOT_FOUND", 404)
+
+        fixtures_regenerated = remove_participant(participant)
+        code = (
+            "PARTICIPANT_REMOVED_REGENERATED"
+            if fixtures_regenerated
+            else "PARTICIPANT_REMOVED"
+        )
+        return Response(
+            {
+                "code": code,
+                "message": MESSAGES[code],
+                "fixtures_regenerated": fixtures_regenerated,
+            }
         )
 
 

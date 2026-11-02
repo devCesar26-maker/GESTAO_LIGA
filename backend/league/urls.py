@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     AdminEnrollView,
     AdminOverviewView,
+    AdminParticipantDetailView,
     ConfirmResultView,
     ContestResultView,
     GenerateFixturesView,
@@ -42,4 +43,9 @@ urlpatterns = [
     ),
     path("admin/overview/", AdminOverviewView.as_view(), name="admin-overview"),
     path("admin/participants/", AdminEnrollView.as_view(), name="admin-enroll"),
+    path(
+        "admin/participants/<int:pk>/",
+        AdminParticipantDetailView.as_view(),
+        name="admin-participant-detail",
+    ),
 ]

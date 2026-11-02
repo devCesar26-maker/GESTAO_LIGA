@@ -1,4 +1,4 @@
-"""Admin-signed enrollment for people who could not self-register."""
+"""Admin-signed enrollment and removal of league participants."""
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
@@ -6,7 +6,8 @@ from django.db import IntegrityError, transaction
 from accounts.models import User
 from core.exceptions import AppError
 
-from ..models import League, Participant
+from ..models import League, Match, Participant
+from .fixtures import reset_and_regenerate
 
 
 def add_participant(
@@ -66,3 +67,46 @@ def add_participant(
 
         participant = Participant.objects.create(league=league, user=user)
         return participant, user_created
+
+
+def remove_participant(participant: Participant) -> bool:
+    """Remove a player from the league, preserving the login account.
+
+    Returns ``True`` when the fixtures had to be regenerated without the player.
+    If the player already has matches, removal is only allowed while no result
+    exists; otherwise deleting the participant would erase match history and
+    change the standings.
+    """
+    with transaction.atomic():
+        league = League.objects.select_for_update().get(pk=participant.league_id)
+        participant = (
+            league.participants.select_related("user").filter(pk=participant.pk).first()
+        )
+        if participant is None:
+            raise AppError("NOT_FOUND", 404)
+
+        has_matches = (
+            participant.home_matches.exists() or participant.away_matches.exists()
+        )
+        if has_matches:
+            has_results = (
+                Match.objects.filter(league=league)
+                .exclude(home_goals__isnull=True, away_goals__isnull=True)
+                .exists()
+                or Match.objects.filter(
+                    league=league,
+                    status__in=[Match.Status.FINISHED, Match.Status.CONTESTED],
+                ).exists()
+            )
+            if has_results:
+                raise AppError("CANNOT_REMOVE_PARTICIPANT_WITH_RESULTS", 409)
+            if league.participants.exclude(pk=participant.pk).count() < 2:
+                raise AppError("CANNOT_REMOVE_LAST_PLAYERS", 409)
+
+        participant.delete()
+        if has_matches:
+            # No result exists, so rebuilding the schedule is safe and keeps
+            # rounds, byes and standings consistent after the removal.
+            reset_and_regenerate(league)
+            return True
+        return False

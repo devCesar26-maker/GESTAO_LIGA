@@ -1530,14 +1530,24 @@ code {
 }
 
 .participant-list li {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
   padding: 0.65rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--surface-2);
   font-size: 0.85rem;
+}
+
+.participant-info {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
 .participant-team {
@@ -1547,6 +1557,15 @@ code {
 .participant-email {
   font-size: 0.75rem;
   overflow-wrap: anywhere;
+}
+
+.participant-remove {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+
+.participant-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
 }
 
 /* --------------------------------------------------------------------------
@@ -1577,13 +1596,15 @@ code {
     grid-template-columns: 1.2fr 1fr;
   }
 
-  .participant-list li {
-    grid-template-columns: 1fr auto;
-    align-items: center;
+  .participant-info {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.55rem;
   }
 
   .participant-email {
-    grid-column: 1 / -1;
+    flex-basis: 100%;
   }
 
   .modal-backdrop {

@@ -48,4 +48,6 @@ export const leagueApi = {
   resetFixtures: () => api.post("/admin/reset-and-regenerate/"),
   getOverview: () => api.get("/admin/overview/"),
   enrollParticipant: (payload) => api.post("/admin/participants/", payload),
+  removeParticipant: (participantId) =>
+    api.delete(`/admin/participants/${participantId}/`),
 };
