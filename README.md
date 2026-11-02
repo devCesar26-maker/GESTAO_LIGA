@@ -242,7 +242,7 @@ Arquivo único na raiz (`.env`), carregado pelo backend. O frontend não precisa
 | `WALKOVER_GOALS` | não | Gols do W.O. (padrão 3). |
 | `FRONTEND_URL` | recomendada | Origem pública do SPA usada no link de reset. Em dev o padrão é `http://localhost:5173`. |
 | `BREVO_API_KEY` | sim para envio real | Chave da API transacional da Brevo (`xkeysib-...`). |
-| `DEFAULT_FROM_EMAIL` | sim para envio real | Remetente **verificado na Brevo**. Ex.: `Liga Amigos <no-reply@seudominio.com>`. |
+| `DEFAULT_FROM_EMAIL` | sim para envio real | Remetente **verificado na Brevo**. Padrão: `Biblioteca <dev.cesar26@gmail.com>`. |
 | `BREVO_API_URL` | não | URL da API da Brevo (padrão `https://api.brevo.com/v3/smtp/email`). |
 | `EMAIL_HOST` | não | Alternativa SMTP, usada só quando `BREVO_API_KEY` está vazia. |
 | `EMAIL_PORT` | não | Porta SMTP (padrão 587; 465 com `EMAIL_USE_SSL=True`). |
@@ -297,7 +297,7 @@ serve apenas para dar acesso total ao **`/django-admin/`** do Django.
 ### Opção 1 — declarativa, via `ADMIN_EMAILS` (recomendada no Render)
 
 1. A pessoa se cadastra normalmente no site (ou você cria a conta).
-2. No Render, defina `ADMIN_EMAILS=voce@exemplo.com` (vários emails separados por vírgula).
+2. No Render, defina `ADMIN_EMAILS=dev.cesar26@gmail.com` (vários emails separados por vírgula).
 3. Reinicie/redeploy o serviço. O `start.sh` roda `sync_admins` a cada boot e promove as contas
    existentes. Emails ainda não cadastrados geram **aviso no log**, sem criar conta.
 4. Recarregue o site logado; o `/api/auth/me/` passa a devolver `is_staff: true` e `/admin` abre.
@@ -436,12 +436,15 @@ para `http://localhost:5173`. Em produção, o projeto usa a **API HTTP da Brevo
 | Variável | Exemplo |
 | --- | --- |
 | `BREVO_API_KEY` | `xkeysib-...` |
-| `DEFAULT_FROM_EMAIL` | `Liga Amigos <no-reply@seudominio.com>` |
+| `DEFAULT_FROM_EMAIL` | `Biblioteca <dev.cesar26@gmail.com>` |
 | `FRONTEND_URL` | `https://liga-amigos.onrender.com` |
 
 A chave é criada em **Brevo → Transactional → Settings → API keys**. O email em
 `DEFAULT_FROM_EMAIL` precisa estar **verificado na Brevo** (ou o domínio autenticado); sem isso a
 API recusa o envio. A API da Brevo tem precedência sobre SMTP.
+
+Neste projeto o remetente é **`Biblioteca <dev.cesar26@gmail.com>`**, já verificado na Brevo. O
+mesmo email também é usado como conta admin via `ADMIN_EMAILS=dev.cesar26@gmail.com`.
 
 ### SMTP (alternativa)
 
@@ -837,13 +840,11 @@ recriação do serviço e ao sleep do plano free.
 3. Preencha as variáveis que estão com `sync: false`:
    - `DATABASE_URL`: string **pooled** do Neon;
    - `DIRECT_DATABASE_URL`: string **direta** do Neon (opcional, usada só no `migrate`);
-   - `BREVO_API_KEY`: chave da API transacional da Brevo;
-   - `DEFAULT_FROM_EMAIL`: remetente **verificado na Brevo**, por exemplo
-     `Liga Amigos <no-reply@seudominio.com>`;
-   - `ADMIN_EMAILS`: email do admin (opcional; veja [Admin em produção](#admin-em-produção)).
-   `SECRET_KEY` é gerada pelo Blueprint. `CSRF_TRUSTED_ORIGINS` e `FRONTEND_URL` já vêm definidos
-   como `https://liga-amigos.onrender.com`; ajuste se o nome do serviço for diferente ou se usar
-   domínio próprio.
+   - `BREVO_API_KEY`: chave da API transacional da Brevo.
+   `SECRET_KEY` é gerada pelo Blueprint. `DEFAULT_FROM_EMAIL`
+   (`Biblioteca <dev.cesar26@gmail.com>`), `ADMIN_EMAILS` (`dev.cesar26@gmail.com`),
+   `CSRF_TRUSTED_ORIGINS` e `FRONTEND_URL` já vêm definidos; ajuste se o nome do serviço for
+   diferente ou se usar domínio próprio.
 4. O build executa `./build.sh`:
    - `pip install -r backend/requirements.txt`;
    - `npm ci`/`npm install` + `npm run build` em `frontend` (gera `frontend/dist`);

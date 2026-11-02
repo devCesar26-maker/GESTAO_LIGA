@@ -46,13 +46,13 @@ services:
       # Comma-separated emails that should be league admins (must already be
       # registered). Promoted on every start; see README "Admin em produção".
       - key: ADMIN_EMAILS
-        sync: false
+        value: dev.cesar26@gmail.com
       # Brevo transactional email API. Only BREVO_API_KEY is secret; the sender
       # below must be a verified sender address/domain in the Brevo account.
       - key: BREVO_API_KEY
         sync: false
       - key: DEFAULT_FROM_EMAIL
-        sync: false
+        value: "Biblioteca <dev.cesar26@gmail.com>"
       # Public HTTPS origin used in the password reset link.
       - key: FRONTEND_URL
         value: https://liga-amigos.onrender.com

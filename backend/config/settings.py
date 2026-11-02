@@ -271,7 +271,7 @@ EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10"))
 BREVO_API_KEY = env("BREVO_API_KEY").strip()
 BREVO_API_URL = env("BREVO_API_URL", "https://api.brevo.com/v3/smtp/email").strip()
 DEFAULT_FROM_EMAIL = env(
-    "DEFAULT_FROM_EMAIL", "Liga Amigos <no-reply@localhost>"
+    "DEFAULT_FROM_EMAIL", "Biblioteca <dev.cesar26@gmail.com>"
 ).strip()
 # Public origin of the React app, used in the reset link. In development the
 # Vite server is on :5173; in production set it to the public HTTPS URL.

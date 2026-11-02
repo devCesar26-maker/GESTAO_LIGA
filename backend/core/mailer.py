@@ -54,7 +54,7 @@ def _send_with_brevo(
         recipient["name"] = to_name
 
     payload = {
-        "sender": {"email": sender_email, "name": sender_name or "Liga Amigos"},
+        "sender": {"email": sender_email, "name": sender_name or "Biblioteca"},
         "to": [recipient],
         "subject": subject,
         "textContent": text_body,
