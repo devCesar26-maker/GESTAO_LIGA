@@ -16,8 +16,15 @@ class RoundInline(admin.TabularInline):
 
 @admin.register(League)
 class LeagueAdmin(admin.ModelAdmin):
-    list_display = ("name", "status", "is_active", "fixtures_generated_at", "fixture_seed")
-    list_filter = ("status", "is_active")
+    list_display = (
+        "name",
+        "status",
+        "is_active",
+        "single_round_mode",
+        "fixtures_generated_at",
+        "fixture_seed",
+    )
+    list_filter = ("status", "is_active", "single_round_mode")
     inlines = [RoundInline, ParticipantInline]
 
 

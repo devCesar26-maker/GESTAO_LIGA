@@ -7,7 +7,7 @@ import ResultDialog from "./ResultDialog";
 import StatusBadge from "./StatusBadge";
 
 const ROUND_LOCK_HINT =
-  "Rodada bloqueada: todas as partidas da rodada anterior precisam ser encerradas primeiro.";
+  "Esta rodada será liberada quando as rodadas anteriores forem encerradas.";
 
 function TeamSide({ participant, goals, opponentGoals, hasResult }) {
   const won = hasResult && goals > opponentGoals;

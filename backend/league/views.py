@@ -14,8 +14,8 @@ from .serializers import (
     AdminParticipantSerializer,
     ContestSerializer,
     KickoffSerializer,
-    LeagueNameSerializer,
     LeagueSerializer,
+    LeagueSettingsSerializer,
     MatchResultLogSerializer,
     MatchSerializer,
     ParticipantSerializer,
@@ -25,6 +25,7 @@ from .serializers import (
 )
 from .services.fixtures import generate_fixtures, reset_and_regenerate
 from .services.league_name import update_league_name
+from .services.league_settings import update_single_round_mode
 from .services.participants import add_participant, remove_participant
 from .services.results import (
     confirm_result,
@@ -457,18 +458,29 @@ class AdminParticipantDetailView(APIView):
 
 
 class LeagueSettingsView(APIView):
-    """Admin: rename the league at any moment (the change is audited)."""
+    """Admin: rename the league and/or change the round mode (both audited)."""
 
     permission_classes = [IsAdmin]
 
     def patch(self, request):
         league = get_league()
-        serializer = LeagueNameSerializer(data=request.data)
+        serializer = LeagueSettingsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        updated, changed = update_league_name(
-            league, request.user, serializer.validated_data["name"]
-        )
+        updated = league
+        changed = False
+        if "name" in data:
+            updated, name_changed = update_league_name(
+                updated, request.user, data["name"]
+            )
+            changed = changed or name_changed
+        if "single_round_mode" in data:
+            updated, mode_changed = update_single_round_mode(
+                updated, request.user, data["single_round_mode"]
+            )
+            changed = changed or mode_changed
+
         code = "LEAGUE_UPDATED" if changed else "NOTHING_CHANGED"
         return Response(
             {

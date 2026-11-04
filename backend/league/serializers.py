@@ -46,6 +46,7 @@ class LeagueSerializer(serializers.ModelSerializer):
             "status",
             "status_label",
             "registration_open",
+            "single_round_mode",
             "fixtures_generated_at",
             "fixture_seed",
             "players_count",
@@ -245,6 +246,39 @@ class LeagueNameSerializer(serializers.Serializer):
         ):
             raise AppError("INVALID_LEAGUE_NAME", 400)
         return cleaned
+
+
+class LeagueSettingsSerializer(serializers.Serializer):
+    """Admin settings: the display name and/or the round mode.
+
+    Both fields are optional so the frontend can send only what changed. Name
+    validation is the same used by ``LeagueNameSerializer``.
+    """
+
+    name = serializers.CharField(
+        max_length=settings.LEAGUE_NAME_MAX_LENGTH * 3,
+        trim_whitespace=True,
+        allow_blank=True,
+        required=False,
+    )
+    single_round_mode = serializers.BooleanField(required=False)
+
+    def validate_name(self, value):
+        cleaned = " ".join((value or "").split())
+        if "<" in cleaned or ">" in cleaned:
+            raise AppError("INVALID_LEAGUE_NAME", 400)
+        if not (
+            settings.LEAGUE_NAME_MIN_LENGTH
+            <= len(cleaned)
+            <= settings.LEAGUE_NAME_MAX_LENGTH
+        ):
+            raise AppError("INVALID_LEAGUE_NAME", 400)
+        return cleaned
+
+    def validate(self, attrs):
+        if not attrs:
+            raise AppError("INVALID_DATA", 400)
+        return attrs
 
 
 class AdminEnrollSerializer(serializers.Serializer):

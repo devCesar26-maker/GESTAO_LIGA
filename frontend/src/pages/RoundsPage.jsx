@@ -145,6 +145,15 @@ export default function RoundsPage() {
             </label>
           </section>
 
+          {league && (
+            <div className="mode-banner" role="status">
+              <span>
+                Modo atual:{" "}
+                {league.single_round_mode ? "1 rodada por vez" : "2 rodadas por vez"}
+              </span>
+            </div>
+          )}
+
           {user && mine && rounds.length === 0 ? (
             <EmptyState
               icon="🔎"
@@ -164,19 +173,22 @@ export default function RoundsPage() {
                   const isCurrent = round.number === currentRound;
                   const isActive = activeRound?.number === round.number;
                   const isLocked = round.state === "locked";
+                  const isOpen = round.state === "open";
                   return (
                     <button
                       key={round.id}
                       type="button"
-                      className={`round-chip${isActive ? " active" : ""}${isCurrent ? " current" : ""}${isLocked ? " is-locked" : ""}`}
+                      className={`round-chip${isActive ? " active" : ""}${isCurrent ? " current" : ""}${isLocked ? " is-locked" : ""}${isOpen ? " is-open" : ""}`}
                       onClick={() => setSelectedRound(round.number)}
                       aria-pressed={isActive}
                       title={
                         isLocked
-                          ? "Rodada bloqueada: todas as partidas da rodada anterior precisam ser encerradas primeiro."
+                          ? "Esta rodada será liberada quando as rodadas anteriores forem encerradas."
                           : isCurrent
                             ? "Rodada atual"
-                            : undefined
+                            : isOpen
+                              ? "Rodada aberta: já é possível lançar resultados."
+                              : undefined
                       }
                     >
                       {isCurrent && <span className="current-dot" aria-hidden="true" />}
@@ -209,8 +221,8 @@ export default function RoundsPage() {
                     <div className="notice notice-warning" role="status">
                       <strong>Rodada bloqueada.</strong>
                       <span>
-                        Só é possível lançar resultados depois que todas as partidas da rodada
-                        anterior forem encerradas. Alterar a data continua liberado.
+                        Só é possível lançar resultados depois que as rodadas anteriores forem
+                        encerradas. Alterar a data continua liberado.
                       </span>
                     </div>
                   )}

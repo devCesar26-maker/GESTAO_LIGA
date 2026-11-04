@@ -51,8 +51,10 @@ digitados no site.
    pergunta ao servidor quem é o usuário logado.
 3. **Geração de confrontos** por round-robin (método do círculo), com folga (`BYE`) para número
    ímpar, dois turnos com mando invertido e semente auditável.
-4. **Trava sequencial de rodadas**: só se lança resultado na rodada N quando a N-1 estiver
-   encerrada, verificado no backend dentro da mesma transação da escrita.
+4. **Trava sequencial de rodadas configurável**: por padrão só se lança resultado na rodada N
+   quando a N-1 estiver encerrada; o admin pode alternar para **duas rodadas simultâneas**, em
+   pares fixos (1 e 2, 3 e 4...). A verificação é sempre feita no backend, dentro da mesma
+   transação da escrita.
 5. **W.O. pelo admin** para não deixar a liga travada por um jogador ausente (3 a 0 para quem
    compareceu, com badge na interface e registro de auditoria).
 6. **Contestação em 48h**, correção pelo admin e auditoria completa em `MatchResultLog`.
@@ -588,24 +590,59 @@ um resultado normal.
 
 ## Trava sequencial de rodadas
 
-Regra: **só é possível lançar resultado na rodada N quando a rodada N-1 está encerrada**.
-A rodada 1 está sempre liberada.
+O estado de cada rodada é **sempre calculado no backend** a partir das partidas e da configuração
+atuais; nunca é armazenado. Trocar a configuração no meio da liga é seguro: o estado é recalculado
+e nenhum resultado é apagado ou invalidado.
+
+### Chave do admin: 1 ou 2 rodadas simultâneas
+
+A liga tem a configuração **`League.single_round_mode`** (migration `0004`, default **`True`** para
+preservar o comportamento que já estava em produção):
+
+- **Ativada (`True`)**: apenas **1 rodada aberta por vez**. A rodada N só aceita resultado quando a
+  N-1 estiver encerrada.
+- **Desativada (`False`)**: até **2 rodadas abertas ao mesmo tempo**, em **pares fixos por
+  número**: (1, 2), (3, 4), (5, 6)...
+
+A regra é generalizada pelo conceito de **bloco**: `tamanho do bloco = 1` (chave ativada) ou `2`
+(desativada), e `bloco(n) = ceil(n / tamanho)`. Uma rodada está **aberta** quando **todas as
+rodadas de blocos anteriores** estão encerradas; as rodadas do mesmo bloco abrem juntas.
+
+Exemplos com a chave desativada:
+
+- As rodadas **1 e 2** abrem desde o início.
+- As rodadas **3 e 4** só abrem quando **1 e 2** estiverem **ambas** encerradas. Encerrar só a 1
+  **não** libera a 3.
+- Num total ímpar de rodadas, a última fica sozinha no seu bloco.
+
+A numeração é **contínua entre os turnos**, então um par pode atravessar a virada: com **11
+jogadores** são **11 rodadas por turno (22 no total), 5 partidas por rodada e 1 folga por rodada**;
+o par **(11, 12)** junta a última rodada do 1º turno com a primeira do 2º e funciona normalmente.
+Com 10 jogadores, o par **(9, 10)** também atravessa o turno.
+
+### Regras que não mudam
 
 - **Rodada encerrada** = todas as suas partidas com resultado (`FINISHED` ou `CONTESTED`, incluindo
   W.O.). Como a folga não cria partida, uma liga ímpar encerra rodadas normalmente.
-- **Numeração contínua entre turnos**: a primeira rodada do 2º turno só abre quando a última do 1º
-  estiver encerrada.
 - **Verificação no backend**, dentro do mesmo `transaction.atomic` que grava o resultado, com lock
-  da linha da liga (`select_for_update`) antes do lock da partida — duas requisições simultâneas não
-  furam a trava (há teste com threads).
+  da linha da liga (`select_for_update`) antes do lock da partida. A configuração é lida dentro da
+  transação, então duas requisições simultâneas não furam a trava nem se a chave for trocada no
+  meio (há testes com threads).
 - **Estados calculados no backend** (`league/services/rounds.py`: `locked`, `open`, `closed`) e
   expostos em `/api/rounds/` (`state`, `state_label`) e em cada partida (`round_state`,
   `permissions.round_locked`, `permissions.can_report`). O front apenas exibe.
-- **Rodadas bloqueadas** aparecem com cadeado e tooltip; o botão “Inserir resultado” desaparece.
+- **Trocar a chave nunca apaga resultados.** Se a rodada 2 já tiver placares e a chave for ativada
+  com a 1 incompleta, os placares existentes continuam valendo; apenas **novos** lançamentos na
+  rodada 2 ficam bloqueados até a 1 encerrar.
 - **Alterar data continua permitido** em rodada bloqueada: a trava vale só para lançar resultado.
-- **Corrigir resultado antigo** não reabre nem bloqueia rodadas.
-- Erro: **409 `ROUND_NOT_OPEN`** — “Você ainda não pode lançar este resultado: todas as partidas da
-  rodada anterior precisam ser encerradas primeiro.”.
+- **Corrigir/contestar resultado antigo** não reabre nem bloqueia rodadas e continua permitido em
+  qualquer modo.
+- O **W.O. do admin** mantém o comportamento: 3x0, encerra a partida e respeita a trava.
+- Erro: **409 `ROUND_NOT_OPEN`** — “Você ainda não pode lançar este resultado: as rodadas
+  anteriores precisam ser encerradas primeiro.”.
+- A chave é alterada por **`PATCH /api/admin/league/`** (somente admin) com
+  `{"single_round_mode": true|false}`; o mesmo valor é idempotente e cada mudança grava
+  `LeagueChangeLog` com autor, valor anterior, novo valor e horário.
 
 ---
 
@@ -659,7 +696,7 @@ com `match.home.user_id`/`match.away.user_id`.
 Toda resposta de erro segue:
 
 ```json
-{ "code": "ROUND_NOT_OPEN", "message": "Você ainda não pode lançar este resultado: todas as partidas da rodada anterior precisam ser encerradas primeiro." }
+{ "code": "ROUND_NOT_OPEN", "message": "Você ainda não pode lançar este resultado: as rodadas anteriores precisam ser encerradas primeiro." }
 ```
 
 - Textos centralizados em **`backend/core/messages.py`**.
@@ -716,7 +753,7 @@ Base: `/api/`. Leitura é pública; escrita exige sessão (cookies) **e** `X-CSR
 | POST | `/matches/<id>/contest/` | Adversário de quem lançou e admin |
 | POST | `/matches/<id>/confirm/` | Admin |
 | GET | `/matches/<id>/logs/` | Admin |
-| PATCH | `/admin/league/` | Admin (nome da liga) |
+| PATCH | `/admin/league/` | Admin (nome da liga e/ou `single_round_mode`) |
 | POST | `/admin/generate-fixtures/` | Admin (idempotente) |
 | POST | `/admin/reset-and-regenerate/` | Admin (bloqueado com resultados) |
 | GET | `/admin/overview/` | Admin (inclui pendentes para W.O.) |
@@ -758,10 +795,14 @@ incrementada.
 - Mobile-first, navegação inferior no celular, tema escuro/claro.
 - Cabeçalho e `document.title` mostram o **nome personalizado** da liga (atualizado na hora após o
   admin renomear).
-- Rodadas com cadeado e tooltip nas bloqueadas; “Inserir resultado” oculto.
+- Banner discreto com o modo atual (“Modo atual: 1 rodada por vez” / “2 rodadas por vez”).
+- Rodadas abertas (uma ou duas) destacadas; bloqueadas com cadeado e tooltip
+  (“Esta rodada será liberada quando as rodadas anteriores forem encerradas.”); “Inserir
+  resultado” só aparece em rodada aberta.
 - Cartões de partida com placar, status, badge **W.O.**, autoria e aviso de contestação.
-- Admin: nome da liga, geração/reset de confrontos, W.O. por lado, contestações, inscrições e
-  remoção de jogador (a conta de login é mantida).
+- Admin: switch “Modo 1 rodada por vez” com confirmação e toast, nome da liga, geração/reset de
+  confrontos, W.O. por lado, contestações, inscrições e remoção de jogador (a conta de login é
+  mantida).
 - Toasts de sucesso/erro, loading, erro com retry e estados vazios.
 
 ---
@@ -774,7 +815,7 @@ source ../.venv/bin/activate
 pytest
 ```
 
-**Resultado final desta alteração: `129 passed`** (backend) + `npm run build` sem erros no frontend.
+**Resultado final desta alteração: `144 passed`** (backend) + `npm run build` sem erros no frontend.
 
 Cobertura relevante:
 
@@ -787,10 +828,14 @@ Cobertura relevante:
 - **Nome da liga**: admin altera (com espaços normalizados) e o endpoint público reflete; não-admin
   recebe `403 ADMIN_ONLY`; vazio/curto/longo/HTML → `400 INVALID_LEAGUE_NAME`; no-op sem log;
   renomear em liga em andamento não altera partidas nem classificação; log de auditoria gravado.
-- **Trava de rodadas**: rodada 1 aberta; lançar na rodada 2 com a 1 incompleta → `409 ROUND_NOT_OPEN`;
-  libera quando a anterior fecha; `CONTESTED` e W.O. contam como encerradas; rodada com folga fecha;
-  virada de turno respeita a trava; corrigir resultado antigo não bloqueia; alterar data em rodada
-  bloqueada é permitido; duas requisições simultâneas não furam a trava.
+- **Trava de rodadas**: modo de 1 rodada (default) idêntico ao anterior; modo de 2 rodadas com
+  pares fixos e blocos; encerrar só a primeira rodada do par não libera o próximo; encerrar as duas
+  libera o par seguinte; cenários de 11 jogadores (22 rodadas, 5 partidas, 1 folga por rodada,
+  par (11,12) na virada), 10 jogadores (par (9,10) na virada) e total ímpar (última sozinha);
+  `CONTESTED` e W.O. contam como encerradas nos dois modos; troca da chave no meio da liga preserva
+  resultados e recalcula estados; corrigir resultado antigo continua permitido; duas requisições
+  simultâneas não furam a trava nem com a chave trocada; apenas admin altera a chave, PATCH repetido
+  é idempotente e a auditoria registra valor anterior/novo.
 - **Desempate**: pontos iguais decididos por vitórias; vitórias iguais por saldo; três times
   empatados; confronto direto **não** é usado; empate total decidido pelo nome do time.
 - **W.O.**: só admin, 3x0 para quem compareceu, entra na classificação, `is_walkover`, log,
@@ -944,6 +989,17 @@ A versão anterior publicava a API e o frontend estático separadamente. Passos:
 13. **Admin não pula a trava** para resultado comum (nem para W.O. em rodada bloqueada).
 14. **`Idempotency-Key` preservado** nos endpoints críticos e a idempotência de domínio continua
     valendo mesmo sem o header.
+15. **`single_round_mode` com default `True`**: a migration `0004` adiciona a coluna preenchida para
+    todas as ligas existentes, sem apagar dados e sem mudar o comportamento atual.
+16. **Blocos derivados, nunca armazenados**: `bloco(n) = ceil(n / 1|2)` e o estado de cada rodada
+    são recalculados a partir das partidas e da chave vigente. Assim, ativar/desativar no meio da
+    liga não exige migração de dados nem invalida resultados.
+17. **A chave é lida dentro da transação de escrita**: o lock da linha da liga serializa lançamentos
+    e alterações de configuração, fechando a condição de corrida inclusive quando a chave muda no
+    meio de duas requisições.
+18. **Mesmo `PATCH /admin/league/`**: o endpoint do nome foi ampliado para aceitar
+    `single_round_mode` (nome e modo podem ir juntos), reaproveitando `IsAdmin`, `AppError`,
+    `messages.py` e `LeagueChangeLog`.
 
 ---
 

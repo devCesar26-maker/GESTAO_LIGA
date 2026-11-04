@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [enroll, setEnroll] = useState(emptyEnroll);
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [leagueName, setLeagueName] = useState("");
+  const [roundModeChange, setRoundModeChange] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,6 +119,18 @@ export default function AdminPage() {
       await load();
     } catch {
       // Toast handled globally.
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const changeRoundMode = async () => {
+    if (roundModeChange === null) return;
+    setBusy("round-mode");
+    try {
+      const { data } = await leagueApi.updateLeagueMode(roundModeChange);
+      notify(data.message, "success");
+      await load();
     } finally {
       setBusy("");
     }
@@ -235,6 +248,36 @@ export default function AdminPage() {
 
       <section className="panel">
         <header className="panel-head">
+          <h2>Modo de rodadas</h2>
+          <p className="panel-subtitle">
+            Controla quantas rodadas podem ficar abertas ao mesmo tempo. A alteração é registrada
+            na auditoria e não apaga resultados já lançados.
+          </p>
+        </header>
+
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={Boolean(league?.single_round_mode)}
+            onChange={(event) =>
+              setRoundModeChange(event.target.checked)
+            }
+            disabled={busy === "round-mode"}
+            aria-describedby="round-mode-help"
+          />
+          <span className="switch-track" aria-hidden="true">
+            <span className="switch-thumb" />
+          </span>
+          <span>Modo 1 rodada por vez</span>
+        </label>
+        <p className="panel-footnote" id="round-mode-help">
+          Ativado: uma rodada por vez. Desativado: duas rodadas ao mesmo tempo (1 e 2, depois 3 e
+          4...).
+        </p>
+      </section>
+
+      <section className="panel">
+        <header className="panel-head">
           <h2>Confrontos</h2>
           <p className="panel-subtitle">
             {fixturesGenerated
@@ -321,7 +364,7 @@ export default function AdminPage() {
                     </strong>
                     {locked && (
                       <small className="muted">
-                        🔒 Rodada bloqueada: encerre a rodada anterior primeiro.
+                        🔒 Esta rodada será liberada quando as rodadas anteriores forem encerradas.
                       </small>
                     )}
                   </span>
@@ -500,6 +543,24 @@ export default function AdminPage() {
           </form>
         </section>
       </div>
+
+      {roundModeChange !== null && (
+        <ConfirmDialog
+          title={
+            roundModeChange
+              ? "Ativar o modo 1 rodada por vez?"
+              : "Permitir 2 rodadas ao mesmo tempo?"
+          }
+          message={
+            roundModeChange
+              ? "Apenas uma rodada ficará aberta por vez: a próxima só é liberada quando a anterior for encerrada. Resultados já lançados são mantidos."
+              : "As rodadas ficarão abertas em pares fixos: 1 e 2, depois 3 e 4, e assim por diante. A virada de turno não muda os pares e resultados já lançados são mantidos."
+          }
+          confirmLabel="Alterar modo"
+          onConfirm={changeRoundMode}
+          onClose={() => setRoundModeChange(null)}
+        />
+      )}
 
       {participantToRemove && (
         <ConfirmDialog

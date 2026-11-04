@@ -87,8 +87,8 @@ MESSAGES = {
     ),
     "INVALID_SCORE": "Informe um placar válido, com números inteiros de 0 a 30.",
     "ROUND_NOT_OPEN": (
-        "Você ainda não pode lançar este resultado: todas as partidas da rodada "
-        "anterior precisam ser encerradas primeiro."
+        "Você ainda não pode lançar este resultado: as rodadas anteriores "
+        "precisam ser encerradas primeiro."
     ),
     "INVALID_ABSENT_SIDE": (
         "Informe quem não compareceu: o mandante (home) ou o visitante (away)."

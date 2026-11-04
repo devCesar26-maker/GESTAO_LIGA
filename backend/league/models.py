@@ -22,6 +22,14 @@ class League(models.Model):
         "situação", max_length=20, choices=Status.choices, default=Status.REGISTRATION
     )
     is_active = models.BooleanField("ativa", default=True)
+    single_round_mode = models.BooleanField(
+        "modo 1 rodada por vez",
+        default=True,
+        help_text=(
+            "Ativado: apenas uma rodada aberta por vez. "
+            "Desativado: duas rodadas abertas por vez, em pares fixos (1 e 2, 3 e 4...)."
+        ),
+    )
     fixtures_generated_at = models.DateTimeField("confrontos gerados em", null=True, blank=True)
     fixture_seed = models.BigIntegerField("semente do sorteio", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -310,6 +318,10 @@ class LeagueChangeLog(models.Model):
 
     class Action(models.TextChoices):
         NAME_CHANGED = "NAME_CHANGED", "Nome alterado"
+        SINGLE_ROUND_MODE_CHANGED = (
+            "SINGLE_ROUND_MODE_CHANGED",
+            "Modo de rodadas alterado",
+        )
 
     league = models.ForeignKey(
         League, on_delete=models.CASCADE, related_name="change_logs", verbose_name="liga"

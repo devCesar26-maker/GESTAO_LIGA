@@ -28,9 +28,13 @@ def _get_locked_match(match_id: int) -> Match:
     return match
 
 
-def _lock_league(league_id: int) -> None:
-    """Serialize round-lock checks between concurrent result writes."""
-    League.objects.select_for_update().filter(pk=league_id).exists()
+def _lock_league(league_id: int) -> League:
+    """Serialize round-lock checks and settings changes between writers.
+
+    Returning the locked row lets the caller evaluate ``single_round_mode`` as
+    it is stored at write time, inside the same transaction.
+    """
+    return League.objects.select_for_update().get(pk=league_id)
 
 
 def _validate_score(value) -> int:
@@ -121,7 +125,7 @@ def report_result(match: Match, user, home_goals, away_goals) -> tuple[Match, bo
     away_goals = _validate_score(away_goals)
 
     with transaction.atomic():
-        _lock_league(match.league_id)
+        league = _lock_league(match.league_id)
         locked = _get_locked_match(match.pk)
         is_admin = bool(user.is_staff)
 
@@ -137,7 +141,7 @@ def report_result(match: Match, user, home_goals, away_goals) -> tuple[Match, bo
             raise AppError("RESULT_ALREADY_REGISTERED", 409)
 
         # Enforced inside the same transaction that writes the result.
-        ensure_round_open(locked.league, locked.round)
+        ensure_round_open(league, locked.round)
 
         if not is_admin:
             user_is_home = locked.home.user_id == user.id
@@ -202,13 +206,13 @@ def register_walkover(match: Match, admin_user, absent_side: str) -> tuple[Match
     goals = min(settings.WALKOVER_GOALS, settings.MAX_GOALS_PER_MATCH)
 
     with transaction.atomic():
-        _lock_league(match.league_id)
+        league = _lock_league(match.league_id)
         locked = _get_locked_match(match.pk)
 
         if locked.has_result:
             raise AppError("RESULT_ALREADY_REGISTERED", 409)
 
-        ensure_round_open(locked.league, locked.round)
+        ensure_round_open(league, locked.round)
 
         home_goals, away_goals = (0, goals) if side == "home" else (goals, 0)
         previous = _state(locked)

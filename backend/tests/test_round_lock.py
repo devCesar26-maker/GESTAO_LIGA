@@ -1,4 +1,8 @@
-"""Sequential round lock: round N only opens after round N-1 is closed."""
+"""Sequential round lock with ``single_round_mode=True`` (the default).
+
+These are the original "one round at a time" tests. The configurable pair mode
+(``single_round_mode=False``) has its own coverage in ``test_round_mode.py``.
+"""
 import threading
 
 import pytest
@@ -22,6 +26,9 @@ def four_players(league, make_user, enroll):
 
 @pytest.fixture
 def generated(league, four_players, api, admin):
+    # Make the intended mode explicit: this module covers the legacy behavior.
+    league.single_round_mode = True
+    league.save(update_fields=["single_round_mode"])
     api.force_authenticate(admin)
     assert api.post("/api/admin/generate-fixtures/", {}, format="json").status_code == 200
     return league

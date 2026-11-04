@@ -44,6 +44,8 @@ export const leagueApi = {
   registerWalkover: (matchId, absentSide) =>
     api.post(`/matches/${matchId}/walkover/`, { absent_side: absentSide }),
   updateLeagueName: (name) => api.patch("/admin/league/", { name }),
+  updateLeagueMode: (singleRoundMode) =>
+    api.patch("/admin/league/", { single_round_mode: singleRoundMode }),
   generateFixtures: () => api.post("/admin/generate-fixtures/"),
   resetFixtures: () => api.post("/admin/reset-and-regenerate/"),
   getOverview: () => api.get("/admin/overview/"),
